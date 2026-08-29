@@ -1,0 +1,13 @@
+// Query name: Malicious Chrome & Edge Extension Hunt 08-2026
+// Description: Detects known malicious browser extensions and infrastructure associated with the Superior credential-stealing and wallet-draining campaign.
+// Author : CYBERMEDIC
+// Last updated: 2026-08-29
+// MITRE Att&ck mapping: T1176, T1071.001, T1539, T1056
+// notes: Searches 90 days of Elastic telemetry for known extension IDs and C2/exfiltration/payload domains.
+// Sources: The Hacker News / Socket Threat Research
+FROM logs-*
+| WHERE @timestamp >= NOW() - 90 days
+| EVAL domain_ioc = COALESCE(url.domain, destination.domain, dns.question.name)
+| WHERE domain_ioc IN ("active-enable-right-click.top","api.enable-right-click.click","enable-right-click.click","payload.siteinsight.bond","api.extensionanalyticspro.top","password-protect-pdf.com","privatecryptonewsreader.pro","cryptoratesfiatconverter.pro","cryptopricebadgequickglance.pro","ws.site-signal.top","content.resonanceweb.top","api.creativelibrary.top","api.codefilearc.net","ws.seopulsepro.sbs","relay.seopulsepro.sbs","defipulsetracker.pro","blockfolioaddressmonitor.pro","pricealarmsvolatilitywarnings.pro","extension.io-safe.icu","feedback.feedx-ray.top","lucky-random.sbs","pipi.saghirmohamed19.workers.dev","mimi.saghirmohamed19.workers.dev","cookie-whitelist.top","whale-alert.art","ggle-analytics.com") OR file.path RLIKE (".*pkoccklolohdacbfooifnpebakpbeipc.*",".*fegckejpfnlmfgkfjpinlbgmeeijjkel.*",".*kdenlnncndfnhkognokgfpabgkgehodd.*",".*jamminefolhgepgihbmcjjhgldbfcikp.*",".*inmkjedjdhgpknjogbjomhnbgdccckkg.*",".*fcgdejjichpgfaaafflplhfijcnieopb.*",".*cfpnjdbpojpcongfaefcamjbaolpelcd.*",".*aapdalkmclfaahehnmicbglkohkldhne.*",".*dkdadldmiefjldmegbjbnhhfddnkhlhm.*",".*fjmlhlkccegopebcllcmafahkmeejpph.*",".*iekoapohahgmogbagegmcgplbkikcgke.*",".*ahpnnnjbnfbhoikhohglpohnoocjcoco.*",".*oeacadlaclegkkkdehjmiifnjhcekclj.*",".*jmlgannjlbliikgcaieomgmcnfplglea.*",".*lhmcajhgadanidbopgaoobjlldegjmke.*",".*gfackggoapepdmnjnkblogdcjpgcjiak.*",".*hfijkbdkpidafdbeebnnkhfccildbcle.*",".*pcngchfbfgejllcbhmeadjhiebebiome.*",".*aodkjdeghbjiaienipfjkbpcikkacbcp.*")
+| KEEP @timestamp, host.name, user.name, process.name, process.executable, domain_ioc, destination.ip, file.path, event.action
+| SORT @timestamp DESC
