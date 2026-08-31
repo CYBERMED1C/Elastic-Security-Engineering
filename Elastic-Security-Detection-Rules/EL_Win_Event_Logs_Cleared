@@ -1,0 +1,11 @@
+// Query name : Windows Event Logs Cleared
+// Description : Detects Windows event log clearing through native audit events, wevtutil, or PowerShell.
+// Author : CYBERMEDIC
+// Last updated : 2026-08-30
+// MITRE Att&ck mapping : T1685.005 - Clear Windows Event Logs
+// notes : High-confidence anti-forensics detection. Review the user, host, parent process, and activity immediately before the event.
+FROM logs-system.security*, logs-system.system*, logs-endpoint.events.process-*, logs-windows.forwarded*, winlogbeat-*
+| WHERE host.os.type == "windows"
+| WHERE (event.code IN ("1102", "104")) OR (process.name == "wevtutil.exe" AND (process.command_line LIKE "* cl *" OR process.command_line LIKE "* clear-log *")) OR (process.name IN ("powershell.exe", "pwsh.exe", "powershell_ise.exe") AND (process.command_line LIKE "*Clear-EventLog*" OR process.command_line LIKE "*Remove-EventLog*"))
+| KEEP @timestamp, host.name, user.name, event.code, event.action, winlog.channel, process.name, process.parent.name, process.command_line
+| SORT @timestamp DESC
