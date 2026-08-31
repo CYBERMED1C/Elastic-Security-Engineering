@@ -1,27 +1,32 @@
-// Name: ValleyRAT / Winos 4.0 - Silver Fox Activity
-// Description: Hunts ValleyRAT IOCs, QN Wallpaper DLL sideloading, Defender tampering, persistence, elevation, and C2 activity.
-// Author : CYBERMEDIC
-// Last updated: 2026-08-31
-// MITRE Att&ck mapping: T1574.002, T1562.001, T1547.001, T1548, T1071
-// notes: August 2026 ValleyRAT campaign abusing signed QN Wallpaper software and malicious libcef.dll sideloading.
-// Sources: The Hacker News / Kaspersky Securelist
 FROM logs-endpoint.events.*
 | WHERE @timestamp >= NOW() - 30 days
+| EVAL registry_strings = MV_CONCAT(registry.data.strings, " ")
 | WHERE file.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2")
 OR process.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2")
 OR dll.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2")
 OR process.name IN ("FS_SETUP_DD_173.exe","FS_SETUP_GG_173.exe","FS_SETUP_HY_173.exe","PeLoader")
 OR (dll.name == "libcef.dll" AND process.name IN ("QnWallpaper.exe","QnwPlayer.exe"))
-OR (process.name == "runas.exe" AND process.command_line LIKE "*QnWallpaper*")
-OR (process.name == "runas.exe" AND process.command_line LIKE "*QnwPlayer*")
-OR (registry.path LIKE "*Windows Defender*DisableAntiSpyware*")
-OR (registry.path LIKE "*CurrentVersion*Run*" AND registry.data.strings LIKE "*QNWallpaper*")
-OR (destination.ip == "103.45.66.18" AND destination.port IN (441,442,443))
-OR (destination.ip == "192.253.225.173" AND destination.port IN (6666,8888))
+OR (process.name == "runas.exe" AND LOCATE(process.command_line,"QnWallpaper") > 0)
+OR (process.name == "runas.exe" AND LOCATE(process.command_line,"QnwPlayer") > 0)
+OR (LOCATE(registry.path,"Windows Defender") > 0 AND LOCATE(registry.path,"DisableAntiSpyware") > 0)
+OR (LOCATE(registry.path,"CurrentVersion") > 0 AND LOCATE(registry.path,"Run") > 0 AND LOCATE(registry_strings,"QNWallpaper") > 0)
+OR (destination.ip == TO_IP("103.45.66.18") AND destination.port IN (441,442,443))
+OR (destination.ip == TO_IP("192.253.225.173") AND destination.port IN (6666,8888))
 OR dns.question.name == "qnwallpaper.keansoft.cn"
 OR url.domain == "qnwallpaper.keansoft.cn"
-OR (url.domain == "meeting.tencent.com" AND process.name LIKE "FS_SETUP_*")
-OR file.path LIKE "*QNWallpaper*5.4.0.1662*"
-| EVAL ThreatReason = CASE(file.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2"),"Known ValleyRAT file hash",process.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2"),"Known ValleyRAT process hash",dll.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2"),"Known ValleyRAT DLL hash",dll.name == "libcef.dll" AND process.name IN ("QnWallpaper.exe","QnwPlayer.exe"),"QN Wallpaper DLL sideloading",registry.path LIKE "*DisableAntiSpyware*","Microsoft Defender tampering",destination.ip IN ("103.45.66.18","192.253.225.173"),"Known ValleyRAT C2",dns.question.name == "qnwallpaper.keansoft.cn","Known ValleyRAT domain",process.name LIKE "FS_SETUP_*","Suspicious ValleyRAT installer","Possible ValleyRAT activity")
+OR (url.domain == "meeting.tencent.com" AND LOCATE(process.name,"FS_SETUP_") == 1)
+OR (LOCATE(file.path,"QNWallpaper") > 0 AND LOCATE(file.path,"5.4.0.1662") > 0)
+| EVAL ThreatReason = CASE(
+file.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2"),"Known ValleyRAT file hash",
+process.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2"),"Known ValleyRAT process hash",
+dll.hash.md5 IN ("c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2"),"Known ValleyRAT DLL hash",
+dll.name == "libcef.dll" AND process.name IN ("QnWallpaper.exe","QnwPlayer.exe"),"QN Wallpaper DLL sideloading",
+LOCATE(registry.path,"DisableAntiSpyware") > 0,"Microsoft Defender tampering",
+destination.ip IN (TO_IP("103.45.66.18"),TO_IP("192.253.225.173")),"Known ValleyRAT C2",
+dns.question.name == "qnwallpaper.keansoft.cn","Known ValleyRAT domain",
+url.domain == "qnwallpaper.keansoft.cn","Known ValleyRAT domain",
+LOCATE(process.name,"FS_SETUP_") == 1,"Suspicious ValleyRAT installer",
+process.name == "runas.exe","Possible privilege elevation",
+"Possible ValleyRAT activity")
 | KEEP @timestamp, host.name, user.name, event.category, event.action, ThreatReason, process.name, process.executable, process.command_line, file.name, file.path, file.hash.md5, dll.name, dll.path, registry.path, registry.data.strings, destination.ip, destination.port, dns.question.name, url.domain
 | SORT @timestamp DESC
