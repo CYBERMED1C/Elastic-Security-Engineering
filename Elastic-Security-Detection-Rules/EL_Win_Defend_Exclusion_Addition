@@ -1,0 +1,14 @@
+// Query name : Windows Defender Exclusion Added
+// Description : Detects PowerShell commands used to add Microsoft Defender file, folder, process, or extension exclusions.
+// Author : CYBERMEDIC
+// Last updated : 2026-08-30
+// MITRE Att&ck mapping : T1685 - Disable or Modify Tools
+// notes : Review the exclusion value, executing user, parent process, and activity immediately before and after the event.
+FROM logs-endpoint.events.process-*
+| WHERE host.os.type == "windows"
+| EVAL cmd = TO_LOWER(process.command_line)
+| WHERE process.name IN ("powershell.exe", "pwsh.exe", "powershell_ise.exe")
+| WHERE (cmd LIKE "*add-mppreference*" OR cmd LIKE "*set-mppreference*")
+| WHERE (cmd LIKE "*exclusionpath*" OR cmd LIKE "*exclusionprocess*" OR cmd LIKE "*exclusionextension*" OR cmd LIKE "*exclusionipaddress*")
+| KEEP @timestamp, host.name, user.name, process.name, process.parent.name, process.command_line
+| SORT @timestamp DESC
