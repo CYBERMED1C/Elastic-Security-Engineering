@@ -1,0 +1,30 @@
+FROM logs-endpoint.events.*, logs-system.*, logs-windows.*
+| WHERE @timestamp >= NOW() - 30 days
+  AND (
+    // Network Indicators
+    destination.ip IN ("31.77.220.138", "193.32.127.248")
+    OR destination.port == 2025
+    OR destination.domain IN ("cdn.nerat.cc", "connect.ne-rat.xyz", "web.ne-rat.xyz")
+    
+    // File & Hash Indicators
+    OR file.name IN ("widdow.jar", "jre-runtime.dat", ".vz_svc_done", "java-jre-update.service")
+    OR file.hash.sha256 IN ("b81a4e1fab9fc4e404d57224fe71e2c143aa93942bd46998789bdc944a7870c7")
+    OR file.path LIKE "*/usr/lib/jvm/.cache/*"
+    
+    // Process & User Indicators
+    OR process.command_line LIKE "*widdow.jar*"
+    OR process.command_line LIKE "*jre-runtime.dat*"
+    OR process.command_line LIKE "*java-jre-update.service*"
+    OR user.name IN ("proxyuser")
+    OR source.ip IN ("31.77.220.138", "193.32.127.248")
+  )
+| EVAL activity = CASE(
+    event.category == "network", "Network Connection",
+    event.category == "file", CONCAT("File Activity: ", file.name),
+    event.category == "process", "Process Execution",
+    event.category == "authentication", CONCAT("Logon: ", user.name),
+    "Other Threat Activity"
+  )
+| KEEP @timestamp, host.name, event.action, source.ip, destination.ip, destination.port, destination.domain, process.name, process.command_line, file.name, activity
+| SORT @timestamp DESC
+| LIMIT 1000
